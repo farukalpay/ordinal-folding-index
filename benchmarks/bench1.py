@@ -344,8 +344,10 @@ def run_llm_benchmark():
 
     models_to_test = {
         "GPT-3.5 Turbo": ("openai", "gpt-3.5-turbo"),
+        "GPT-O3": ("openai", "gpt-o3"),
         "GPT-4 (Proxy)": ("openai", "gpt-4"),
         "GPT-2 Large (HF)": ("hf", "gpt2-large"),
+        "DeepSeek (HF)": ("hf", "deepseek-ai/deepseek-llm-7b-base"),
     }
     
     results = {}
