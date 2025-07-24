@@ -40,6 +40,16 @@ except ImportError:
     OPENAI_AVAILABLE = False
     APIError = Exception # Define a placeholder for error handling
 
+# Attempt to import HuggingFace transformers for local models like GPT-2
+try:
+    from transformers import pipeline
+    import torch
+    HF_AVAILABLE = True
+    HF_PIPELINES = {}
+except ImportError:
+    HF_AVAILABLE = False
+    HF_PIPELINES = {}
+
 # =============================================================================
 #
 #   Part 1: Analytic Benchmark - Fixed-Point Solvers (Section 6.2)
@@ -213,6 +223,56 @@ def run_ofi_probe_real(client, model, prompt, max_iter=10, temp_start=0.7, temp_
         
     return max_iter
 
+def run_ofi_probe_hf(model_name, prompt, max_iter=10, temp_start=0.7, temp_end=0.2):
+    """Performs an OFI probe using a local HuggingFace model."""
+    if not HF_AVAILABLE:
+        print("    transformers library not available. Using mock response.")
+        return max_iter
+
+    if model_name not in HF_PIPELINES:
+        try:
+            generator = pipeline(
+                "text-generation",
+                model=model_name,
+                device=0 if torch.cuda.is_available() else -1,
+                model_kwargs={"torch_dtype": torch.float16 if torch.cuda.is_available() else torch.float32},
+            )
+            generator.tokenizer.pad_token_id = generator.model.config.eos_token_id
+            HF_PIPELINES[model_name] = generator
+        except Exception as e:
+            print(f"    Failed to load model '{model_name}': {e}")
+            return max_iter
+
+    generator = HF_PIPELINES[model_name]
+    history = []
+    text = prompt
+
+    for i in range(1, max_iter + 1):
+        temperature = temp_start - (temp_start - temp_end) * (i / max_iter)
+
+        try:
+            output = generator(
+                text,
+                max_new_tokens=50,
+                do_sample=True,
+                temperature=float(temperature),
+                return_full_text=False,
+            )
+            response_text = output[0]["generated_text"]
+        except Exception as e:
+            print(f"    Local generation failed: {e}")
+            return max_iter
+
+        normalized_response = normalize_text(response_text)
+
+        if history and normalized_response == history[-1]:
+            return i
+
+        history.append(normalized_response)
+        text = response_text + "\nPlease reflect on and refine your previous answer."
+
+    return max_iter
+
 def run_ofi_probe_mock(model_name, category):
     """A mock version that produces realistic, reproducible random data."""
     if category == "Factual": return 1
@@ -283,22 +343,29 @@ def run_llm_benchmark():
         print("\nWARNING: `openai` library not installed. Running in MOCK mode.")
 
     models_to_test = {
-        "GPT-3.5 Turbo": "gpt-3.5-turbo",
-        "GPT-4 (Proxy)": "gpt-4",
+        "GPT-3.5 Turbo": ("openai", "gpt-3.5-turbo"),
+        "GPT-4 (Proxy)": ("openai", "gpt-4"),
+        "GPT-2 Large (HF)": ("hf", "gpt2-large"),
     }
     
     results = {}
-    for model_name, model_id in models_to_test.items():
+    for model_name, (provider, model_id) in models_to_test.items():
         print(f"\nTesting model: {model_name}")
         results[model_name] = {}
         for category, prompts in PROMPTS.items():
             print(f"  Category: {category}")
             ofi_scores = []
             for prompt in prompts:
-                if use_mock:
-                    ofi = run_ofi_probe_mock(model_name, category)
+                if provider == "hf":
+                    if HF_AVAILABLE:
+                        ofi = run_ofi_probe_hf(model_id, prompt)
+                    else:
+                        ofi = run_ofi_probe_mock(model_name, category)
                 else:
-                    ofi = run_ofi_probe_real(client, model_id, prompt)
+                    if use_mock:
+                        ofi = run_ofi_probe_mock(model_name, category)
+                    else:
+                        ofi = run_ofi_probe_real(client, model_id, prompt)
                 
                 ofi_scores.append(ofi)
                 print(f"    - Prompt OFI: {ofi}")
