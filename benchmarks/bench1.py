@@ -151,8 +151,8 @@ def run_fixed_point_benchmark():
     ax.legend(fontsize=11)
     
     plt.tight_layout()
-    plt.savefig('fixed_point_convergence.pdf')
-    print("Plot saved to fixed_point_convergence.pdf")
+    plt.savefig('fixed_point_convergence.png')
+    print("Plot saved to fixed_point_convergence.png")
     plt.show()
 
 
