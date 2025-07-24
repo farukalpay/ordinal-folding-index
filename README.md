@@ -26,5 +26,4 @@ and prints a summary table of OFI scores:
 ```
 
 The benchmark uses four factual, three reasoning, and three paradoxical prompts
-to estimate the OFI for each model. For details see [arXiv:9999.99999].
-=======
+to estimate the OFI for each model. 
