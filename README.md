@@ -1,32 +1,41 @@
 # ordinal-folding-index
 
-This repository accompanies the manuscript on ordinal folding dynamics. The
-`benchmarks/bench1.py` script runs two demonstrations:
+This repository accompanies the manuscript on ordinal folding dynamics. It now
+provides a small Python library and a demonstration script.
 
-1. A fixed-point solver benchmark producing a convergence plot.
-2. An Ordinal Folding Index (OFI) probe for large language models.
-
-The OFI benchmark supports OpenAI models and now includes optional support for
-local HuggingFace models such as **GPT-2 Large** and **DeepSeek**. It also
-benchmarks OpenAI's latest **GPT-O3** model. To use the HuggingFace models
-locally, ensure that `transformers` and `torch` are installed.
-
-Running `python benchmarks/bench1.py` generates `fixed_point_convergence.png`
-and prints a summary table of OFI scores:
+## Library structure
 
 ```
----------------------------------------------------------
-                OFI Benchmark Summary Table
----------------------------------------------------------
- Model            | Factual   | Reasoning | Paradoxical
---------------------------------------------------------
- GPT-3.5 Turbo    | 1.0 ± 0.0 | 1.3 ± 0.5 | 4.0 ± 0.0
- GPT-O3           | 1.0 ± 0.0 | 1.3 ± 0.5 | 3.7 ± 0.9
- GPT-4 (Proxy)    | 1.0 ± 0.0 | 2.3 ± 0.5 | 10.0 ± 0.0
- GPT-2 Large (HF) | 1.0 ± 0.0 | 1.7 ± 0.5 | 4.0 ± 0.8
- DeepSeek (HF)    | 1.0 ± 0.0 | 1.7 ± 0.5 | 3.7 ± 0.5
----------------------------------------------------------
+library/
+  embedding_contraction.py  # post-processing for word vectors
+  bench1.py                 # fixed-point and OFI benchmarks
+main.py                     # runs a short demo
 ```
 
-The benchmark uses four factual, three reasoning, and three paradoxical prompts
-to estimate the OFI for each model. 
+`embedding_contraction.py` implements the contraction operator described in the
+manuscript for adjusting embeddings. `bench1.py` exposes the benchmark
+functions originally contained in `benchmarks/bench1.py`.
+
+## Quick start
+
+1. Install the Python dependencies. Only `numpy` and `matplotlib` are required
+   for the demo. Optionally install `openai`, `transformers`, and `torch` to run
+   the full OFI benchmark.
+
+```bash
+pip install numpy matplotlib  # plus openai/transformers/torch if desired
+```
+
+2. Execute the demo which exercises the library and runs both benchmarks
+   (using mock data if API libraries are unavailable):
+
+```bash
+python main.py
+```
+
+The script prints progress messages, produces the convergence plot
+`fixed_point_convergence.png`, and displays a summary table of OFI scores.
+
+The original benchmark script remains under `benchmarks/bench1.py` for
+reference; the library exposes the same functionality for reuse in other
+projects.
