@@ -29,4 +29,8 @@ and prints a summary table of OFI scores:
 ```
 
 The benchmark uses four factual, three reasoning, and three paradoxical prompts
-to estimate the OFI for each model. 
+to estimate the OFI for each model.
+
+The repository also provides `embedding_contraction.py`, which implements the
+contraction operator discussed in the manuscript for post-processing word
+embeddings.  See the module's docstring for usage details.
