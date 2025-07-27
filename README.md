@@ -1,32 +1,49 @@
 # ordinal-folding-index
 
 This repository accompanies the manuscript on ordinal folding dynamics. The
-`benchmarks/bench1.py` script runs two demonstrations:
+codebase is now organized as a small Python library under the `library/`
+directory.
 
-1. A fixed-point solver benchmark producing a convergence plot.
-2. An Ordinal Folding Index (OFI) probe for large language models.
+## Library overview
 
-The OFI benchmark supports OpenAI models and now includes optional support for
-local HuggingFace models such as **GPT-2 Large** and **DeepSeek**. It also
-benchmarks OpenAI's latest **GPT-O3** model. To use the HuggingFace models
-locally, ensure that `transformers` and `torch` are installed.
+- `library.contraction.adjust_embeddings` implements the contraction operator
+  for post-processing word vectors.
+- `library.benchmarks` exposes `run_fixed_point_benchmark()` and
+  `run_llm_benchmark()` which wrap the analytic and LLM benchmarks originally
+  provided in `benchmarks/bench1.py`.
 
-Running `python benchmarks/bench1.py` generates `fixed_point_convergence.png`
-and prints a summary table of OFI scores:
+## Running the demo
 
-```
----------------------------------------------------------
-                OFI Benchmark Summary Table
----------------------------------------------------------
- Model            | Factual   | Reasoning | Paradoxical
---------------------------------------------------------
- GPT-3.5 Turbo    | 1.0 ± 0.0 | 1.3 ± 0.5 | 4.0 ± 0.0
- GPT-O3           | 1.0 ± 0.0 | 1.3 ± 0.5 | 3.7 ± 0.9
- GPT-4 (Proxy)    | 1.0 ± 0.0 | 2.3 ± 0.5 | 10.0 ± 0.0
- GPT-2 Large (HF) | 1.0 ± 0.0 | 1.7 ± 0.5 | 4.0 ± 0.8
- DeepSeek (HF)    | 1.0 ± 0.0 | 1.7 ± 0.5 | 3.7 ± 0.5
----------------------------------------------------------
+A convenience script `main.py` demonstrates both the contraction operator and
+the benchmarks. Execute it from the repository root:
+
+```bash
+python main.py
 ```
 
-The benchmark uses four factual, three reasoning, and three paradoxical prompts
-to estimate the OFI for each model. 
+By default the LLM benchmark runs in mock mode unless the `openai` package is
+installed and a valid `OPENAI_API_KEY` environment variable is available.
+Support for local HuggingFace models requires `transformers` and `torch`.
+
+The fixed-point benchmark saves `fixed_point_convergence.png` and prints an OFI
+summary table.
+
+## Requirements
+
+The core utilities depend only on `numpy`. The benchmarks additionally require
+`matplotlib` and optionally `openai`, `transformers`, and `torch`.
+
+```bash
+pip install numpy matplotlib openai transformers torch
+```
+
+Install only the packages you need.
+
+## Legacy scripts
+
+The original benchmark script remains in `benchmarks/bench1.py` and can still be
+run directly if desired:
+
+```bash
+python benchmarks/bench1.py
+```
