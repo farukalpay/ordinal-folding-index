@@ -1,36 +1,45 @@
 # ordinal-folding-index
 
-This repository accompanies the manuscript on ordinal folding dynamics. The
-`benchmarks/bench1.py` script runs two demonstrations:
+This repository accompanies the manuscript on ordinal folding dynamics.  All
+code has been moved into a small library so it can be reused from scripts or
+other projects.
 
-1. A fixed-point solver benchmark producing a convergence plot.
-2. An Ordinal Folding Index (OFI) probe for large language models.
-
-The OFI benchmark supports OpenAI models and now includes optional support for
-local HuggingFace models such as **GPT-2 Large** and **DeepSeek**. It also
-benchmarks OpenAI's latest **GPT-O3** model. To use the HuggingFace models
-locally, ensure that `transformers` and `torch` are installed.
-
-Running `python benchmarks/bench1.py` generates `fixed_point_convergence.png`
-and prints a summary table of OFI scores:
+## Library layout
 
 ```
----------------------------------------------------------
-                OFI Benchmark Summary Table
----------------------------------------------------------
- Model            | Factual   | Reasoning | Paradoxical
---------------------------------------------------------
- GPT-3.5 Turbo    | 1.0 ± 0.0 | 1.3 ± 0.5 | 4.0 ± 0.0
- GPT-O3           | 1.0 ± 0.0 | 1.3 ± 0.5 | 3.7 ± 0.9
- GPT-4 (Proxy)    | 1.0 ± 0.0 | 2.3 ± 0.5 | 10.0 ± 0.0
- GPT-2 Large (HF) | 1.0 ± 0.0 | 1.7 ± 0.5 | 4.0 ± 0.8
- DeepSeek (HF)    | 1.0 ± 0.0 | 1.7 ± 0.5 | 3.7 ± 0.5
----------------------------------------------------------
+library/
+    __init__.py
+    contraction.py   # embedding contraction operator
+    benchmarks.py    # analytic and LLM benchmarks
+benchmarks/
+    bench1.py        # original standalone benchmark script
+main.py              # demonstration entry point
 ```
 
-The benchmark uses four factual, three reasoning, and three paradoxical prompts
-to estimate the OFI for each model.
+The module `library.contraction` implements the contraction operator for
+post‑processing word vectors.  `library.benchmarks` provides both the
+fixed‑point solver benchmark and the Ordinal Folding Index (OFI) probe for large
+language models.
 
-The repository also provides `embedding_contraction.py`, which implements the
-contraction operator discussed in the manuscript for post-processing word
-embeddings.  See the module's docstring for usage details.
+## Running the demos
+
+Execute
+
+```bash
+python main.py
+```
+
+This will run a tiny contraction example, generate the convergence plot for the
+fixed‑point solver benchmark and a mock OFI benchmark using the utilities from
+the library.
+
+To run the full benchmarks exactly as in the manuscript you can still invoke the
+standalone script
+
+```bash
+python benchmarks/bench1.py
+```
+
+which requires `numpy`, `matplotlib` and, if you wish to test real language
+models, `openai`, `transformers` and `torch`.
+
