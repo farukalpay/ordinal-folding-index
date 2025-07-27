@@ -1,18 +1,34 @@
 # ordinal-folding-index
 
-This repository accompanies the manuscript on ordinal folding dynamics. The
-`benchmarks/bench1.py` script runs two demonstrations:
+This repository accompanies the manuscript on ordinal folding dynamics.  The code
+is organised as a small library under `library/` and a `main.py` driver script
+that runs all available demonstrations.
 
-1. A fixed-point solver benchmark producing a convergence plot.
-2. An Ordinal Folding Index (OFI) probe for large language models.
+## Library
 
-The OFI benchmark supports OpenAI models and now includes optional support for
-local HuggingFace models such as **GPT-2 Large** and **DeepSeek**. It also
-benchmarks OpenAI's latest **GPT-O3** model. To use the HuggingFace models
-locally, ensure that `transformers` and `torch` are installed.
+```
+library/
+  __init__.py
+  contraction.py   # embedding contraction utility
+  benchmarks.py    # fixed-point and LLM benchmarks
+```
 
-Running `python benchmarks/bench1.py` generates `fixed_point_convergence.png`
-and prints a summary table of OFI scores:
+The `contraction.adjust_embeddings` function implements the contraction
+operator described in the paper for post-processing word embeddings.  The
+`benchmarks` module exposes two entry points:
+
+- `run_fixed_point_benchmark()` – generates the convergence plot of fixed-point
+  solvers.
+- `run_llm_benchmark()` – runs the Ordinal Folding Index (OFI) probe on several
+  language models.  OpenAI models require a valid API key; HuggingFace models
+  require the `transformers` and `torch` packages.
+
+## Usage
+
+Run `python main.py` to execute a short demo of the embedding contraction and
+then run both benchmarks.  The fixed-point benchmark produces the figure
+`fixed_point_convergence.png` and the LLM benchmark prints a summary table of
+OFI scores.  Example output:
 
 ```
 ---------------------------------------------------------
@@ -28,5 +44,8 @@ and prints a summary table of OFI scores:
 ---------------------------------------------------------
 ```
 
-The benchmark uses four factual, three reasoning, and three paradoxical prompts
-to estimate the OFI for each model. 
+The OFI benchmark uses four factual, three reasoning, and three paradoxical
+prompts to estimate the index for each model.  Set the `API_KEY` variable in
+`library/benchmarks.py` or the `OPENAI_API_KEY` environment variable to run with
+the real OpenAI API.  Without a key or without the required libraries, the
+benchmark falls back to mock mode.
