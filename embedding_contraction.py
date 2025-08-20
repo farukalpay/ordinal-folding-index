@@ -49,7 +49,15 @@ def _hyperbolic_contraction(x: np.ndarray, m_pos: np.ndarray, m_neg: np.ndarray,
 # Public API
 # ---------------------------------------------------------------------------
 
-def adjust_embeddings(E: np.ndarray, anchor_sets: dict, d1: int = 10, alpha: float = 0.4, beta: float = 0.1, iters: int = 20) -> np.ndarray:
+def adjust_embeddings(
+    E: np.ndarray,
+    anchor_sets: dict,
+    d1: int = 10,
+    alpha: float = 0.4,
+    beta: float = 0.1,
+    iters: int = 20,
+    tol: float = 1e-5,
+) -> np.ndarray:
     """Applies the contraction operator to selected embeddings.
 
     Parameters
@@ -67,6 +75,9 @@ def adjust_embeddings(E: np.ndarray, anchor_sets: dict, d1: int = 10, alpha: flo
         Repulsion strength from the negative centroid. Use ``0 < beta < alpha``.
     iters : int, optional
         Number of contraction iterations to perform.
+    tol : float, optional
+        Early-stopping tolerance. Iterations terminate once both the
+        hyperbolic and Euclidean components change by less than ``tol``.
 
     Returns
     -------
@@ -88,11 +99,20 @@ def adjust_embeddings(E: np.ndarray, anchor_sets: dict, d1: int = 10, alpha: flo
         m_neg_e = E_new[A_neg, d1:].mean(axis=0)
 
         for _ in range(iters):
+            prev_x_h = x_h.copy()
+            prev_x_e = x_e.copy()
+
             x_h = _hyperbolic_contraction(x_h, m_pos_h, m_neg_h, alpha, beta)
             v_pos_e = m_pos_e - x_e
             v_neg_e = m_neg_e - x_e
             inner_e = float(np.dot(v_neg_e, v_pos_e))
             x_e = x_e + alpha * v_pos_e - beta * inner_e * v_neg_e / np.clip(np.linalg.norm(v_neg_e), 1e-8, None)
+
+            if (
+                np.linalg.norm(x_h - prev_x_h) < tol
+                and np.linalg.norm(x_e - prev_x_e) < tol
+            ):
+                break
 
         E_new[i] = np.concatenate([x_h, x_e])
 
