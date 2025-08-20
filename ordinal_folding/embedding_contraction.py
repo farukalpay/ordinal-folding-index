@@ -5,8 +5,10 @@ import numpy as np
 This module implements a simplified version of the fixed-point method
 outlined in the manuscript. It treats the embedding space as a product of
 a hyperbolic component (implemented with the Poincaré ball model) and a
-Euclidean tail. The main entry point is ``adjust_embeddings`` which updates
-selected vectors based on positive and negative anchor sets.
+Euclidean tail. The main entry point is :func:`adjust_embeddings` which
+updates selected vectors based on positive and negative anchor sets.  The
+function also supports **weighted** anchor sets, allowing individual anchors
+to influence the update with custom strengths.
 """
 
 # ---------------------------------------------------------------------------
@@ -65,8 +67,11 @@ def adjust_embeddings(
     E : ndarray of shape (V, d)
         Original embeddings.
     anchor_sets : dict
-        Maps an index ``i`` to a tuple ``(A_plus, A_minus)`` of lists containing
-        positive and negative anchor indices for ``i``.
+        Maps an index ``i`` to either ``(A_plus, A_minus)`` or
+        ``(A_plus, A_minus, w_plus, w_minus)``. ``A_plus`` and ``A_minus`` are
+        lists of positive and negative anchor indices for ``i``. ``w_plus`` and
+        ``w_minus`` are optional weight arrays of the same length that sum to
+        one. When omitted, uniform weights are used.
     d1 : int, optional
         Dimension of the hyperbolic component.
     alpha : float, optional
@@ -88,15 +93,28 @@ def adjust_embeddings(
     assert d1 <= d, "d1 must not exceed embedding dimension"
     E_new = E.copy()
 
-    for i, (A_pos, A_neg) in anchor_sets.items():
-        if not A_pos or not A_neg:
-            continue
+    for i, anchors in anchor_sets.items():
+        if len(anchors) == 2:
+            A_pos, A_neg = anchors
+            if not A_pos or not A_neg:
+                continue
+            w_pos = np.full(len(A_pos), 1 / len(A_pos))
+            w_neg = np.full(len(A_neg), 1 / len(A_neg))
+        else:
+            A_pos, A_neg, w_pos, w_neg = anchors
+            if not A_pos or not A_neg:
+                continue
+            w_pos = np.asarray(w_pos, dtype=float)
+            w_neg = np.asarray(w_neg, dtype=float)
+            w_pos = w_pos / np.clip(w_pos.sum(), 1e-8, None)
+            w_neg = w_neg / np.clip(w_neg.sum(), 1e-8, None)
+
         x = E_new[i]
         x_h, x_e = x[:d1], x[d1:]
-        m_pos_h = E_new[A_pos, :d1].mean(axis=0)
-        m_neg_h = E_new[A_neg, :d1].mean(axis=0)
-        m_pos_e = E_new[A_pos, d1:].mean(axis=0)
-        m_neg_e = E_new[A_neg, d1:].mean(axis=0)
+        m_pos_h = (E_new[A_pos, :d1] * w_pos[:, None]).sum(axis=0)
+        m_neg_h = (E_new[A_neg, :d1] * w_neg[:, None]).sum(axis=0)
+        m_pos_e = (E_new[A_pos, d1:] * w_pos[:, None]).sum(axis=0)
+        m_neg_e = (E_new[A_neg, d1:] * w_neg[:, None]).sum(axis=0)
 
         for _ in range(iters):
             prev_x_h = x_h.copy()
