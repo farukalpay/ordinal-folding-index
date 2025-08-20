@@ -31,6 +31,26 @@ and prints a summary table of OFI scores:
 The benchmark uses four factual, three reasoning, and three paradoxical prompts
 to estimate the OFI for each model.
 
-The repository also provides `embedding_contraction.py`, which implements the
-contraction operator discussed in the manuscript for post-processing word
-embeddings.  See the module's docstring for usage details.
+## Library usage
+
+The contraction operator discussed in the manuscript is now available as a
+Python library.  Install the package in editable mode:
+
+```bash
+pip install -e .
+```
+
+Then adjust embeddings directly from Python:
+
+```python
+from ordinal_folding import adjust_embeddings
+
+E_new = adjust_embeddings(E, {
+    0: ([1, 2], [3, 4]),                     # uniform weights
+    5: ([6, 7], [8], [0.8, 0.2], [1.0])      # weighted anchors
+})
+```
+
+Anchor sets may optionally include weights, giving individual anchors more or
+less influence.  See the docstring in `ordinal_folding/embedding_contraction.py`
+for full details.
