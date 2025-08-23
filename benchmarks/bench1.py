@@ -1,20 +1,10 @@
-# =============================================================================
-#
-#   Supplemental Material: Python Code (Final Version with Corrected Key Logic)
-#
-#   For the manuscript: "Ultracoarse Equilibria and Ordinal Folding Dynamics
-#   in Operator--Algebraic Infinite Games"
-#
-#   This script contains the implementations for:
-#   1. The analytic benchmark of fixed-point solvers (Section 6.2).
-#   2. The empirical benchmark of the Ordinal Folding Index on LLMs (Section 6.1).
-#
-#   Improvements in this version:
-#   - Corrected the logic for checking the API key to ensure your key is used.
-#   - Your API key has been pre-filled.
-#   - All previous reliability features are maintained.
-#
-# =============================================================================
+"""
+Benchmark script for fixed-point solvers and the Ordinal Folding Index (OFI).
+
+Part 1 simulates several fixed-point solvers and saves
+``fixed_point_convergence.png``. Part 2 probes language models—either through
+the OpenAI API or locally via HuggingFace—to estimate their OFI scores.
+"""
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -25,11 +15,7 @@ import re
 
 # --- Configuration ---
 
-# 1. YOUR OPENAI API KEY IS PRE-FILLED BELOW
-#    The script will use this key.
-API_KEY = "sk-proj-.."
-
-# 2. SET TO True TO FORCE MOCK MODE (e.g., for quick testing without API calls)
+# Set to True to force mock mode (useful for testing without API calls)
 FORCE_MOCK_MODE = False
 
 # Attempt to import openai, but don't fail if it's not installed
@@ -39,6 +25,16 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
     APIError = Exception # Define a placeholder for error handling
+
+# Attempt to import HuggingFace transformers for local models like GPT-2
+try:
+    from transformers import pipeline
+    import torch
+    HF_AVAILABLE = True
+    HF_PIPELINES = {}
+except ImportError:
+    HF_AVAILABLE = False
+    HF_PIPELINES = {}
 
 # =============================================================================
 #
@@ -141,8 +137,8 @@ def run_fixed_point_benchmark():
     ax.legend(fontsize=11)
     
     plt.tight_layout()
-    plt.savefig('fixed_point_convergence.pdf')
-    print("Plot saved to fixed_point_convergence.pdf")
+    plt.savefig('fixed_point_convergence.png')
+    print("Plot saved to fixed_point_convergence.png")
     plt.show()
 
 
@@ -189,29 +185,65 @@ def call_api_with_retry(client, model, messages, temperature, max_retries=3):
             break
     return None # Return None if all retries fail
 
-def run_ofi_probe_real(client, model, prompt, max_iter=10, temp_start=0.7, temp_end=0.2):
-    """Performs a real OFI probe using the modern OpenAI API."""
+def run_ofi_probe(responder, state, max_iter=10, temp_start=0.7, temp_end=0.2):
+    """Generic OFI probe that iteratively calls a responder function."""
     history = []
-    messages = [{"role": "user", "content": prompt}]
-    
     for i in range(1, max_iter + 1):
         temperature = temp_start - (temp_start - temp_end) * (i / max_iter)
-        
+        try:
+            state, response_text = responder(state, temperature)
+        except Exception as e:
+            print(f"    Generation failed: {e}")
+            return max_iter
+        normalized = normalize_text(response_text)
+        if history and normalized == history[-1]:
+            return i
+        history.append(normalized)
+    return max_iter
+
+def make_openai_responder(client, model, prompt):
+    """Factory returning a responder for the OpenAI chat API."""
+    messages = [{"role": "user", "content": prompt}]
+
+    def responder(messages, temperature):
         response_text = call_api_with_retry(client, model, messages, temperature)
         if response_text is None:
-            print("    API call failed after multiple retries. Skipping prompt.")
-            return max_iter # Assume non-convergence on failure
-
-        normalized_response = normalize_text(response_text)
-
-        if history and normalized_response == history[-1]:
-            return i
-
-        history.append(normalized_response)
+            raise RuntimeError("API call failed after retries")
         messages.append({"role": "assistant", "content": response_text})
         messages.append({"role": "user", "content": "Please reflect on and refine your previous answer."})
-        
-    return max_iter
+        return messages, response_text
+
+    return responder, messages
+
+def make_hf_responder(model_name, prompt):
+    """Factory returning a responder for a local HuggingFace model."""
+    if not HF_AVAILABLE:
+        raise RuntimeError("transformers library not available")
+    if model_name not in HF_PIPELINES:
+        generator = pipeline(
+            "text-generation",
+            model=model_name,
+            device=0 if torch.cuda.is_available() else -1,
+            model_kwargs={"torch_dtype": torch.float16 if torch.cuda.is_available() else torch.float32},
+        )
+        generator.tokenizer.pad_token_id = generator.model.config.eos_token_id
+        HF_PIPELINES[model_name] = generator
+    generator = HF_PIPELINES[model_name]
+    text = prompt
+
+    def responder(text, temperature):
+        output = generator(
+            text,
+            max_new_tokens=50,
+            do_sample=True,
+            temperature=float(temperature),
+            return_full_text=False,
+        )
+        response_text = output[0]["generated_text"]
+        next_text = response_text + "\nPlease reflect on and refine your previous answer."
+        return next_text, response_text
+
+    return responder, text
 
 def run_ofi_probe_mock(model_name, category):
     """A mock version that produces realistic, reproducible random data."""
@@ -257,48 +289,65 @@ def print_summary_table(results):
 def run_llm_benchmark():
     """Runs the full LLM OFI benchmark."""
     print("\n--- Running Part 2: LLM OFI Benchmark ---")
-    
+
     client = None
     use_mock = True
-    
+
     if FORCE_MOCK_MODE:
         print("Forcing MOCK mode as per configuration.")
     elif OPENAI_AVAILABLE:
-        # CORRECTED LOGIC: Check if the API_KEY is not the placeholder
-        api_key_to_use = API_KEY if API_KEY and "YOUR_API_KEY_HERE" not in API_KEY else os.environ.get("OPENAI_API_KEY")
-        
-        if api_key_to_use:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if api_key:
             try:
-                client = OpenAI(api_key=api_key_to_use)
-                client.models.list() 
+                client = OpenAI(api_key=api_key)
+                client.models.list()
                 print("\nSUCCESS: OpenAI API key is valid. Running in REAL mode.")
                 use_mock = False
             except Exception as e:
-                print(f"\nWARNING: API key found but failed to initialize client: {e}")
+                print(f"\nWARNING: Failed to initialize OpenAI client: {e}")
                 print("Proceeding in MOCK mode.")
         else:
             print("\nWARNING: No OpenAI API key found. Running in MOCK mode.")
-            print("To run with the real API, please set the `API_KEY` variable in the script.")
+            print("Set the `OPENAI_API_KEY` environment variable to run real API calls.")
     else:
         print("\nWARNING: `openai` library not installed. Running in MOCK mode.")
 
     models_to_test = {
-        "GPT-3.5 Turbo": "gpt-3.5-turbo",
-        "GPT-4 (Proxy)": "gpt-4",
+        "GPT-3.5 Turbo": ("openai", "gpt-3.5-turbo"),
+        "GPT-4 (Proxy)": ("openai", "gpt-4"),
+        "GPT-O3 (Proxy)": ("openai", "gpt-o3"),
+        "GPT-2 Large (HF)": ("hf", "gpt2-large"),
+        "DeepSeek (HF)": ("hf", "deepseek-ai/deepseek-llm"),
     }
     
     results = {}
-    for model_name, model_id in models_to_test.items():
+    for model_name, (provider, model_id) in models_to_test.items():
         print(f"\nTesting model: {model_name}")
         results[model_name] = {}
         for category, prompts in PROMPTS.items():
             print(f"  Category: {category}")
             ofi_scores = []
             for prompt in prompts:
-                if use_mock:
-                    ofi = run_ofi_probe_mock(model_name, category)
+                if provider == "hf":
+                    if HF_AVAILABLE:
+                        try:
+                            responder, state = make_hf_responder(model_id, prompt)
+                            ofi = run_ofi_probe(responder, state)
+                        except Exception as e:
+                            print(f"    {e}")
+                            ofi = run_ofi_probe_mock(model_name, category)
+                    else:
+                        ofi = run_ofi_probe_mock(model_name, category)
                 else:
-                    ofi = run_ofi_probe_real(client, model_id, prompt)
+                    if use_mock:
+                        ofi = run_ofi_probe_mock(model_name, category)
+                    else:
+                        try:
+                            responder, state = make_openai_responder(client, model_id, prompt)
+                            ofi = run_ofi_probe(responder, state)
+                        except Exception as e:
+                            print(f"    {e}")
+                            ofi = run_ofi_probe_mock(model_name, category)
                 
                 ofi_scores.append(ofi)
                 print(f"    - Prompt OFI: {ofi}")
